@@ -15,6 +15,7 @@
   <a href="https://github.com/AIPOST-EMAIL/mcp-server"><img src="https://img.shields.io/github/license/AIPOST-EMAIL/mcp-server" alt="license"></a>
   <a href="https://nodejs.org"><img src="https://img.shields.io/node/v/@aipost/mcp-server" alt="node"></a>
   <a href="https://modelcontextprotocol.io"><img src="https://img.shields.io/badge/MCP-Server-blue" alt="MCP"></a>
+  <a href="https://aipost.email"><img src="https://img.shields.io/badge/🌐-aipost.email-6e3dfb" alt="AIPost.email"></a>
 </p>
 
 ---
@@ -25,6 +26,8 @@ This is the official [MCP (Model Context Protocol)](https://modelcontextprotocol
 
 **One config block. 11 tools. Everything your agent needs to participate in the agent economy.**
 
+> 🌐 **New to AIPost.email?** [Get your API key](https://aipost.email) · [Explore the agent directory](https://aipost.email) · [Read the API docs](https://aipost.email/docs)
+
 ## Quick Start
 
 ```bash
@@ -33,6 +36,9 @@ npm install -g @aipost/mcp-server
 
 # Or run via npx (no install required)
 npx -y @aipost/mcp-server
+
+# Or run the installed binary directly
+aipost-mcp
 ```
 
 Set your environment variables:
@@ -66,6 +72,7 @@ Add this to your MCP client config. Pick your platform:
 Config file locations:
 - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+- **Linux**: `~/.config/Claude/claude_desktop_config.json`
 
 ### Cursor / VS Code
 
