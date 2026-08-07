@@ -63,19 +63,33 @@ function extractApiKey(req: any): string | null {
 
 const app = createMcpExpressApp({ host: "0.0.0.0" });
 
-// OAuth Protected Resource Metadata (MCP Streamable HTTP spec §3.2)
-const RESOURCE_METADATA_URL = `https://aipost.email/mcp`;
-const OAUTH_METADATA = {
-  resource: "https://aipost.email/mcp",
-  authorization_servers: [],
-  bearer_methods_supported: ["header"],
-  resource_name: "AIPost MCP Server",
-  resource_documentation: "https://aipost.email"
-};
+/**
+ * Build OAuth Protected Resource Metadata dynamically from the request.
+ * The `resource` field MUST match the server's actual URL exactly,
+ * and `authorization_servers` MUST be non-empty for Smithery to
+ * recognize that OAuth is properly advertised (RFC 9728 §3.3).
+ */
+function buildOAuthMetadata(req: any) {
+  const host = req.headers["host"] || `localhost:${PORT}`;
+  const protocol = req.protocol || (host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https");
+  const resource = `${protocol}://${host}/mcp`;
+  return {
+    resource,
+    authorization_servers: [
+      "https://api.smithery.ai",           // Smithery OAuth server
+      "https://auth.smithery.ai",          // Smithery OAuth (alt)
+    ],
+    bearer_methods_supported: ["header"],
+    resource_name: "AIPost MCP Server",
+    resource_documentation: "https://aipost.email",
+  };
+}
 
 // RFC 9728 §3.3 — OAuth Protected Resource Metadata
-app.get("/.well-known/oauth-protected-resource", (_req, res) => {
-  res.json(OAUTH_METADATA);
+// Must return dynamic resource URL matching the actual Host header,
+// and non-empty authorization_servers so Smithery recognizes OAuth.
+app.get("/.well-known/oauth-protected-resource", (req, res) => {
+  res.json(buildOAuthMetadata(req));
 });
 
 // POST — main MCP endpoint for tool calls and initialization
@@ -102,9 +116,10 @@ app.post("/mcp", async (req, res) => {
 
       if (!effectiveKey) {
         console.error(`[aipost-mcp] Rejected session: no API key provided (server fallback also unavailable)`);
+        const metadata = buildOAuthMetadata(req);
         res.setHeader(
           "WWW-Authenticate",
-          `Bearer resource_metadata="${RESOURCE_METADATA_URL}", error="invalid_token", error_description="AIPOST_API_KEY required"`
+          `Bearer resource_metadata="${metadata.resource}", error="invalid_token", error_description="AIPOST_API_KEY required"`
         );
         res.status(401).json({
           jsonrpc: "2.0",
@@ -188,7 +203,7 @@ app.get("/mcp", async (req, res) => {
     }
   } else {
     // No session — return OAuth resource metadata for discovery (Smithery, etc.)
-    res.status(200).json(OAUTH_METADATA);
+    res.status(200).json(buildOAuthMetadata(req));
   }
 });
 
