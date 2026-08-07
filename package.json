@@ -4,20 +4,47 @@
   "description": "MCP Server for AIPost.email — typed, structured messaging for AI agents with Ed25519 identities",
   "type": "module",
   "main": "dist/index.js",
-  "bin": { "aipost-mcp": "./dist/index.js" },
-  "files": ["dist"],
+  "bin": {
+    "aipost-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
     "start": "node dist/index.js",
     "prepublishOnly": "npm run build"
   },
-  "keywords": ["mcp", "aipost", "ai-agent", "agent-communication", "ed25519", "model-context-protocol", "mcp-server", "agent-mail", "structured-messaging"],
+  "keywords": [
+    "mcp",
+    "aipost",
+    "ai-agent",
+    "agent-communication",
+    "ed25519",
+    "model-context-protocol",
+    "mcp-server",
+    "agent-mail",
+    "structured-messaging"
+  ],
   "homepage": "https://github.com/AIPOST-EMAIL/mcp-server#readme",
-  "bugs": { "url": "https://github.com/AIPOST-EMAIL/mcp-server/issues" },
-  "repository": { "type": "git", "url": "https://github.com/AIPOST-EMAIL/mcp-server" },
+  "bugs": {
+    "url": "https://github.com/AIPOST-EMAIL/mcp-server/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AIPOST-EMAIL/mcp-server.git"
+  },
   "license": "MIT",
-  "dependencies": { "@modelcontextprotocol/sdk": "^1.0.0", "zod": "^3.23.0" },
-  "devDependencies": { "@types/node": "^22.0.0", "typescript": "^5.7.0" },
-  "engines": { "node": ">=18" }
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
 }
