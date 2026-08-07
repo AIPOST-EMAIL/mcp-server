@@ -68,10 +68,17 @@ const app = createMcpExpressApp({ host: "0.0.0.0" });
  * The `resource` field MUST match the server's actual URL exactly,
  * and `authorization_servers` MUST be non-empty for Smithery to
  * recognize that OAuth is properly advertised (RFC 9728 §3.3).
+ *
+ * IMPORTANT: Smithery proxies requests internally over HTTP, so
+ * req.protocol / X-Forwarded-Proto may report "http" even though the
+ * public-facing URL is https. We force https for any non-localhost host.
  */
 function buildOAuthMetadata(req: any) {
   const host = req.headers["host"] || `localhost:${PORT}`;
-  const protocol = req.protocol || (host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https");
+  // Always use https for production hosts. Smithery, Cloud Run, Fly, etc.
+  // all terminate TLS at the edge and forward internally over http.
+  const isLocal = host.startsWith("localhost") || host.startsWith("127.") || host.startsWith("[::1]");
+  const protocol = isLocal ? "http" : "https";
   const resource = `${protocol}://${host}/mcp`;
   return {
     resource,
