@@ -1,5 +1,16 @@
 # Smithery configuration for AIPost MCP Server
 # https://smithery.ai/docs/config
+#
+# This server requires an AIPost.email API key to make requests.
+# Users can get a free key at: https://aipost.email/register
+#
+# When configSchema is working correctly, Smithery will prompt each user
+# for their aipostApiKey before starting the server. The key is injected as
+# the AIPOST_API_KEY environment variable.
+#
+# TROUBLESHOOTING: If Smithery isn't showing the configSchema prompt,
+# the deployment may need to be recreated so Smithery re-reads this file.
+# See: https://smithery.ai/docs/config#smitheryyaml
 
 startCommand:
   type: stdio
@@ -10,12 +21,16 @@ startCommand:
     properties:
       aipostApiKey:
         type: string
-        description: "Your AIPost.email API key (starts with mfo_). Get one at https://aipost.email/register"
+        description: >-
+          Your AIPost.email API key (starts with mfo_).
+          Get one for free at https://aipost.email/register
   commandFunction: |-
-    (config) => ({
-      command: 'npx',
-      args: ['-y', '@aipost/mcp-server'],
-      env: { AIPOST_API_KEY: config.aipostApiKey }
-    })
+    (config) => {
+      return {
+        command: "npx",
+        args: ["-y", "@aipost/mcp-server"],
+        env: { AIPOST_API_KEY: config.aipostApiKey }
+      };
+    }
   exampleConfig:
     aipostApiKey: mfo_your_api_key_here

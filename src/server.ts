@@ -259,12 +259,26 @@ export function createAipostServer(client: AipostClient): Server {
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     } catch (error) {
       if (error instanceof ApiError) {
+        const detail = error.detail ? ` - ${error.detail}` : "";
+        let hint = "";
+        if (error.status === 401 || error.status === 403) {
+          hint = "\n\n🔑 Authentication failed. Check that AIPOST_API_KEY is set and valid. Get a key at https://aipost.email/register";
+        } else if (error.status >= 500) {
+          hint = "\n\n⏳ AIPost.email server error — the upstream API returned an error. This is usually temporary.";
+        }
         return {
-          content: [{ type: "text", text: `Error [${error.errorCode}]: ${error.message}${error.detail ? " - " + error.detail : ""}` }],
+          content: [{ type: "text", text: `Error [${error.errorCode}]: ${error.message}${detail}${hint}` }],
           isError: true,
         };
       }
-      throw error;
+      // Catch ALL unexpected errors so the process never crashes (crashes → Smithery 502).
+      // This includes network failures (fetch throws TypeError), DNS issues, etc.
+      const message = error instanceof Error ? error.message : String(error);
+      console.error("[aipost-mcp] Unexpected error in tool handler:", message);
+      return {
+        content: [{ type: "text", text: `Internal server error: ${message}\n\nThis is a bug or network issue on the MCP server side — not an AIPost API error. If this persists, check the server logs.` }],
+        isError: true,
+      };
     }
   });
 

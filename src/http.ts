@@ -13,11 +13,14 @@ const MAX_SESSIONS = 100;
 // The server-level key is used ONLY as a fallback when the client does not
 // send an Authorization header on initialize.
 const SERVER_API_KEY = process.env.AIPOST_API_KEY || "";
-if (!SERVER_API_KEY) {
-  console.error("[aipost-mcp] No AIPOST_API_KEY set — clients must provide their own API key via Authorization: Bearer header on initialize");
-} else {
-  console.error("[aipost-mcp] Server-level AIPOST_API_KEY set (fallback mode). Per-session keys via Authorization header take precedence.");
-}
+const BOOT_ID = randomUUID().slice(0, 8);
+
+console.error(`[aipost-mcp] ========================================`);
+console.error(`[aipost-mcp] HTTP server starting (boot ${BOOT_ID})`);
+console.error(`[aipost-mcp] Port: ${PORT}`);
+console.error(`[aipost-mcp] Server API key: ${SERVER_API_KEY ? "SET (fallback enabled)" : "NOT SET (per-session keys required)"}`);
+console.error(`[aipost-mcp] Auth mode: ${SERVER_API_KEY ? "hybrid (server fallback + per-session)" : "per-session only"}`);
+console.error(`[aipost-mcp] ========================================`);
 
 // Per-session state — each session has its own transport + client
 interface SessionState {
@@ -79,6 +82,10 @@ app.get("/.well-known/oauth-protected-resource", (_req, res) => {
 app.post("/mcp", async (req, res) => {
   try {
     const sessionId = req.headers["mcp-session-id"] as string | undefined;
+    const method = (req.body as any)?.method || "unknown";
+
+    // Log every request at debug level so we can trace Smithery → server communication
+    console.error(`[aipost-mcp] <- POST /mcp method=${method} session=${sessionId || "none"} hasAuth=${!!req.headers["authorization"]}`);
 
     if (sessionId && sessions[sessionId]) {
       // Existing session — reuse transport
@@ -91,17 +98,27 @@ app.post("/mcp", async (req, res) => {
       // the user to configure AIPOST_API_KEY in Secrets / Environment Variables.
       const userApiKey = extractApiKey(req);
       const effectiveKey = userApiKey || SERVER_API_KEY;
+      console.error(`[aipost-mcp] Initialize: userApiKey=${!!userApiKey} serverFallback=${!!SERVER_API_KEY} effective=${!!effectiveKey}`);
 
       if (!effectiveKey) {
+        console.error(`[aipost-mcp] Rejected session: no API key provided (server fallback also unavailable)`);
         res.setHeader(
           "WWW-Authenticate",
-          `Bearer resource_metadata="${RESOURCE_METADATA_URL}", error="invalid_token", error_description="API key required"`
+          `Bearer resource_metadata="${RESOURCE_METADATA_URL}", error="invalid_token", error_description="AIPOST_API_KEY required"`
         );
         res.status(401).json({
           jsonrpc: "2.0",
           error: {
             code: -32001,
-            message: "API key required. Set AIPOST_API_KEY in Smithery Secrets/Environment Variables, or register at https://aipost.email/register",
+            message: [
+              "API key required to use AIPost MCP Server.",
+              "",
+              "How to fix:",
+              "1. If connecting via Smithery: the server developer must add AIPOST_API_KEY in Smithery Secrets,",
+              "   or the smithery.yaml configSchema must be configured so you can enter your own key.",
+              "2. If connecting directly: add an Authorization: Bearer <key> header to initialize requests.",
+              "3. Get a free API key at https://aipost.email/register",
+            ].join("\n"),
           },
           id: (req.body as any)?.id ?? null,
         });
@@ -139,12 +156,17 @@ app.post("/mcp", async (req, res) => {
       id: req.body?.id ?? null,
     });
   } catch (error) {
-    console.error("[aipost-mcp] Error handling MCP request:", error);
+    const detail = error instanceof Error ? error.message : String(error);
+    console.error(`[aipost-mcp] Unhandled error in POST /mcp: ${detail}`, error instanceof Error ? error.stack : "");
     if (!res.headersSent) {
       res.status(500).json({
         jsonrpc: "2.0",
-        error: { code: -32603, message: "Internal server error" },
-        id: null,
+        error: {
+          code: -32603,
+          message: `Internal server error: ${detail}`,
+          data: { bootId: BOOT_ID },
+        },
+        id: (req.body as any)?.id ?? null,
       });
     }
   }
@@ -153,10 +175,13 @@ app.post("/mcp", async (req, res) => {
 // GET — SSE stream for server-to-client notifications
 app.get("/mcp", async (req, res) => {
   const sessionId = req.headers["mcp-session-id"] as string | undefined;
+  console.error(`[aipost-mcp] <- GET /mcp session=${sessionId || "none"}`);
   if (sessionId && sessions[sessionId]) {
     try {
       await sessions[sessionId].transport.handleRequest(req, res);
     } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      console.error(`[aipost-mcp] Error in GET /mcp (SSE): ${detail}`);
       if (!res.headersSent) {
         res.status(500).end();
       }
@@ -170,27 +195,42 @@ app.get("/mcp", async (req, res) => {
 // DELETE — session termination
 app.delete("/mcp", async (req, res) => {
   const sessionId = req.headers["mcp-session-id"] as string | undefined;
+  console.error(`[aipost-mcp] <- DELETE /mcp session=${sessionId || "none"}`);
   if (sessionId && sessions[sessionId]) {
     try {
       await sessions[sessionId].transport.handleRequest(req, res);
     } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      console.error(`[aipost-mcp] Error in DELETE /mcp: ${detail}`);
       if (!res.headersSent) {
         res.status(500).end();
       }
     }
     sessions[sessionId].transport.close().catch(() => {});
     delete sessions[sessionId];
+    console.error(`[aipost-mcp] Session ${sessionId} terminated`);
   } else {
     res.status(404).json({ error: "Session not found" });
   }
 });
 
-// Health check
+// Health check — includes diagnostics for debugging cloud deployments
 app.get("/health", (_req, res) => {
-  res.json({ status: "ok", sessions: Object.keys(sessions).length });
+  res.json({
+    status: "ok",
+    bootId: BOOT_ID,
+    sessions: Object.keys(sessions).length,
+    maxSessions: MAX_SESSIONS,
+    serverApiKey: !!SERVER_API_KEY,
+    authMode: SERVER_API_KEY ? "hybrid" : "per-session",
+    uptime: Math.floor(process.uptime()),
+    nodeVersion: process.version,
+  });
 });
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.error(`[aipost-mcp] HTTP server listening on port ${PORT}`);
-  console.error("[aipost-mcp] Per-session API key mode — each client provides their own key");
+  console.error(`[aipost-mcp] HTTP server listening on port ${PORT} (0.0.0.0)`);
+  console.error(`[aipost-mcp] Endpoints: POST /mcp | GET /mcp | DELETE /mcp | GET /health`);
+  console.error(`[aipost-mcp] OAuth metadata: GET /.well-known/oauth-protected-resource`);
+  console.error(`[aipost-mcp] Ready for connections. Boot ID: ${BOOT_ID}`);
 });
