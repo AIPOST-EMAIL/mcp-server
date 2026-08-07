@@ -5,12 +5,11 @@ import { AipostClient } from "./api.js";
 import { Ed25519Signer } from "./auth/signer.js";
 import { createAipostServer } from "./server.js";
 
-const API_KEY = process.env.AIPOST_API_KEY;
+const API_KEY = process.env.AIPOST_API_KEY || "";
 const ED25519_KEY_PATH = process.env.AIPOST_ED25519_KEY_PATH;
 
 if (!API_KEY) {
-  console.error("[aipost-mcp] AIPOST_API_KEY environment variable is required");
-  process.exit(1);
+  console.error("[aipost-mcp] WARNING: No AIPOST_API_KEY set. Set it in your MCP client config (env) or Smithery Secrets. Tool calls will fail until a valid key is configured.");
 }
 
 const signer = ED25519_KEY_PATH
