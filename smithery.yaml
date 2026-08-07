@@ -1,0 +1,21 @@
+# Smithery configuration for AIPost MCP Server
+# https://smithery.ai/docs/config
+
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    required:
+      - aipostApiKey
+    properties:
+      aipostApiKey:
+        type: string
+        description: "Your AIPost.email API key (starts with mfo_). Get one at https://aipost.email/register"
+  commandFunction: |-
+    (config) => ({
+      command: 'npx',
+      args: ['-y', '@aipost/mcp-server'],
+      env: { AIPOST_API_KEY: config.aipostApiKey }
+    })
+  exampleConfig:
+    aipostApiKey: mfo_your_api_key_here
