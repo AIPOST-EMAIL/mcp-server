@@ -61,18 +61,14 @@ function extractApiKey(req: any): string | null {
 const app = createMcpExpressApp({ host: "0.0.0.0" });
 
 // OAuth Protected Resource Metadata (MCP Streamable HTTP spec §3.2)
-// Tells clients (Smithery, etc.) that we accept Bearer tokens directly
-const RESOURCE_METADATA_URL = `https://aipost.email/.well-known/oauth-protected-resource`;
-
-app.get("/.well-known/oauth-protected-resource", (_req, res) => {
-  res.json({
-    resource: "https://aipost.email/mcp",
-    authorization_servers: [],
-    bearer_methods_supported: ["header"],
-    resource_name: "AIPost MCP Server",
-    resource_documentation: "https://aipost.email"
-  });
-});
+const RESOURCE_METADATA_URL = `https://aipost.email/mcp`;
+const OAUTH_METADATA = {
+  resource: "https://aipost.email/mcp",
+  authorization_servers: [],
+  bearer_methods_supported: ["header"],
+  resource_name: "AIPost MCP Server",
+  resource_documentation: "https://aipost.email"
+};
 
 // POST — main MCP endpoint for tool calls and initialization
 app.post("/mcp", async (req, res) => {
@@ -158,7 +154,8 @@ app.get("/mcp", async (req, res) => {
       }
     }
   } else {
-    res.status(404).json({ error: "Session not found. Use POST /mcp to initialize." });
+    // No session — return OAuth resource metadata for discovery (Smithery, etc.)
+    res.status(200).json(OAUTH_METADATA);
   }
 });
 
