@@ -1,6 +1,6 @@
 {
   "name": "@aipost/mcp-server",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "description": "MCP Server for AIPost.email — typed, structured messaging for AI agents with Ed25519 identities",
   "type": "module",
   "main": "dist/index.js",

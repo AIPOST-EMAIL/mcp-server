@@ -63,40 +63,20 @@ function extractApiKey(req: any): string | null {
 
 const app = createMcpExpressApp({ host: "0.0.0.0" });
 
-/**
- * Build OAuth Protected Resource Metadata dynamically from the request.
- * The `resource` field MUST match the server's actual URL exactly,
- * and `authorization_servers` MUST be non-empty for Smithery to
- * recognize that OAuth is properly advertised (RFC 9728 §3.3).
- *
- * IMPORTANT: Smithery proxies requests internally over HTTP, so
- * req.protocol / X-Forwarded-Proto may report "http" even though the
- * public-facing URL is https. We force https for any non-localhost host.
- */
-function buildOAuthMetadata(req: any) {
-  const host = req.headers["host"] || `localhost:${PORT}`;
-  // Always use https for production hosts. Smithery, Cloud Run, Fly, etc.
-  // all terminate TLS at the edge and forward internally over http.
-  const isLocal = host.startsWith("localhost") || host.startsWith("127.") || host.startsWith("[::1]");
-  const protocol = isLocal ? "http" : "https";
-  const resource = `${protocol}://${host}/mcp`;
-  return {
-    resource,
-    authorization_servers: [
-      "https://api.smithery.ai",           // Smithery OAuth server
-      "https://auth.smithery.ai",          // Smithery OAuth (alt)
-    ],
-    bearer_methods_supported: ["header"],
-    resource_name: "AIPost MCP Server",
-    resource_documentation: "https://aipost.email",
-  };
-}
+// OAuth Protected Resource Metadata (RFC 9728 §3.3).
+// authorization_servers is empty because we use direct Bearer API keys
+// (users register at aipost.email, get an mfo_xxx key, and pass it as
+// Authorization: Bearer header). No OAuth flow needed.
+const OAUTH_METADATA = {
+  resource: "https://aipost.email/mcp",
+  authorization_servers: [] as string[],
+  bearer_methods_supported: ["header"],
+  resource_name: "AIPost MCP Server",
+  resource_documentation: "https://aipost.email",
+};
 
-// RFC 9728 §3.3 — OAuth Protected Resource Metadata
-// Must return dynamic resource URL matching the actual Host header,
-// and non-empty authorization_servers so Smithery recognizes OAuth.
-app.get("/.well-known/oauth-protected-resource", (req, res) => {
-  res.json(buildOAuthMetadata(req));
+app.get("/.well-known/oauth-protected-resource", (_req, res) => {
+  res.json(OAUTH_METADATA);
 });
 
 // POST — main MCP endpoint for tool calls and initialization
@@ -115,37 +95,11 @@ app.post("/mcp", async (req, res) => {
     }
 
     if (!sessionId && isInitializeRequest(req.body)) {
-      // New session — require API key at initialization so Smithery prompts
-      // the user to configure AIPOST_API_KEY in Secrets / Environment Variables.
+      // New session — extract user's API key if provided.
+      // Sessions can be created WITHOUT an API key (for Smithery tool discovery).
+      // Tool calls will return auth errors from the AIPost API if no valid key is set.
       const userApiKey = extractApiKey(req);
-      const effectiveKey = userApiKey || SERVER_API_KEY;
-      console.error(`[aipost-mcp] Initialize: userApiKey=${!!userApiKey} serverFallback=${!!SERVER_API_KEY} effective=${!!effectiveKey}`);
-
-      if (!effectiveKey) {
-        console.error(`[aipost-mcp] Rejected session: no API key provided (server fallback also unavailable)`);
-        const metadata = buildOAuthMetadata(req);
-        res.setHeader(
-          "WWW-Authenticate",
-          `Bearer resource_metadata="${metadata.resource}", error="invalid_token", error_description="AIPOST_API_KEY required"`
-        );
-        res.status(401).json({
-          jsonrpc: "2.0",
-          error: {
-            code: -32001,
-            message: [
-              "API key required to use AIPost MCP Server.",
-              "",
-              "How to fix:",
-              "1. If connecting via Smithery: the server developer must add AIPOST_API_KEY in Smithery Secrets,",
-              "   or the smithery.yaml configSchema must be configured so you can enter your own key.",
-              "2. If connecting directly: add an Authorization: Bearer <key> header to initialize requests.",
-              "3. Get a free API key at https://aipost.email/register",
-            ].join("\n"),
-          },
-          id: (req.body as any)?.id ?? null,
-        });
-        return;
-      }
+      const effectiveKey = userApiKey || SERVER_API_KEY; // may be ""
 
       const client = new AipostClient({ apiKey: effectiveKey });
       const server = createAipostServer(client);
@@ -159,6 +113,8 @@ app.post("/mcp", async (req, res) => {
 
       if (userApiKey) {
         console.error(`[aipost-mcp] New session with per-session API key`);
+      } else if (SERVER_API_KEY) {
+        console.error(`[aipost-mcp] New session using server fallback key`);
       } else {
         console.error(`[aipost-mcp] New session without API key (tools will require auth)`);
       }
@@ -210,7 +166,7 @@ app.get("/mcp", async (req, res) => {
     }
   } else {
     // No session — return OAuth resource metadata for discovery (Smithery, etc.)
-    res.status(200).json(buildOAuthMetadata(req));
+    res.status(200).json(OAUTH_METADATA);
   }
 });
 
