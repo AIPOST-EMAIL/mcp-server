@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { randomUUID } from "node:crypto";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createMcpExpressApp } from "@modelcontextprotocol/sdk/server/express.js";
@@ -59,6 +60,20 @@ function extractApiKey(req: any): string | null {
 
 const app = createMcpExpressApp({ host: "0.0.0.0" });
 
+// OAuth Protected Resource Metadata (MCP Streamable HTTP spec §3.2)
+// Tells clients (Smithery, etc.) that we accept Bearer tokens directly
+const RESOURCE_METADATA_URL = `https://aipost.email/.well-known/oauth-protected-resource`;
+
+app.get("/.well-known/oauth-protected-resource", (_req, res) => {
+  res.json({
+    resource: "https://aipost.email/mcp",
+    authorization_servers: [],
+    bearer_methods_supported: ["header"],
+    resource_name: "AIPost MCP Server",
+    resource_documentation: "https://aipost.email"
+  });
+});
+
 // POST — main MCP endpoint for tool calls and initialization
 app.post("/mcp", async (req, res) => {
   try {
@@ -76,6 +91,10 @@ app.post("/mcp", async (req, res) => {
       const effectiveKey = userApiKey || SERVER_API_KEY;
 
       if (!effectiveKey) {
+        res.setHeader(
+          "WWW-Authenticate",
+          `Bearer resource_metadata="${RESOURCE_METADATA_URL}", error="invalid_token", error_description="API key required"`
+        );
         res.status(401).json({
           jsonrpc: "2.0",
           error: {
