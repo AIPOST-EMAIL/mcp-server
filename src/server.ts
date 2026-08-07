@@ -150,7 +150,7 @@ const TOOLS = [
  */
 export function createAipostServer(client: AipostClient): Server {
   const server = new Server(
-    { name: "aipost-mcp", version: "1.0.2" },
+    { name: "aipost-mcp", version: "1.0.3" },
     { capabilities: { tools: {} } }
   );
 
