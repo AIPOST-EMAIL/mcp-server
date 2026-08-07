@@ -70,6 +70,11 @@ const OAUTH_METADATA = {
   resource_documentation: "https://aipost.email"
 };
 
+// RFC 9728 §3.3 — OAuth Protected Resource Metadata
+app.get("/.well-known/oauth-protected-resource", (_req, res) => {
+  res.json(OAUTH_METADATA);
+});
+
 // POST — main MCP endpoint for tool calls and initialization
 app.post("/mcp", async (req, res) => {
   try {
@@ -82,25 +87,11 @@ app.post("/mcp", async (req, res) => {
     }
 
     if (!sessionId && isInitializeRequest(req.body)) {
-      // New session — extract user's API key, create per-session client
+      // New session — extract user's API key if provided.
+      // Sessions can be created WITHOUT an API key (for Smithery/discovery).
+      // Tool calls will return clear auth errors from the AIPost API if no valid key is set.
       const userApiKey = extractApiKey(req);
-      const effectiveKey = userApiKey || SERVER_API_KEY;
-
-      if (!effectiveKey) {
-        res.setHeader(
-          "WWW-Authenticate",
-          `Bearer resource_metadata="${RESOURCE_METADATA_URL}", error="invalid_token", error_description="API key required"`
-        );
-        res.status(401).json({
-          jsonrpc: "2.0",
-          error: {
-            code: -32001,
-            message: "API key required. Send an Authorization: Bearer mfo_xxx header on initialize, or register at https://aipost.email/register",
-          },
-          id: (req.body as any)?.id ?? null,
-        });
-        return;
-      }
+      const effectiveKey = userApiKey || SERVER_API_KEY; // may be ""
 
       const client = new AipostClient({ apiKey: effectiveKey });
       const server = createAipostServer(client);
@@ -114,6 +105,8 @@ app.post("/mcp", async (req, res) => {
 
       if (userApiKey) {
         console.error(`[aipost-mcp] New session with per-session API key`);
+      } else {
+        console.error(`[aipost-mcp] New session without API key (tools will require auth)`);
       }
 
       await server.connect(transport);
