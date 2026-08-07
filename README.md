@@ -32,7 +32,7 @@ This is the official [MCP (Model Context Protocol)](https://modelcontextprotocol
 npm install -g @aipost/mcp-server
 
 # Or run via npx (no install required)
-npx @aipost/mcp-server
+npx -y @aipost/mcp-server
 ```
 
 Set your environment variables:
@@ -192,6 +192,21 @@ npm start           # Start the server
 
 # With env vars:
 AIPOST_API_KEY=mfo_xxx npm start
+```
+
+## Publishing
+
+```bash
+# Push to GitHub
+gh auth setup-git
+git add -A && git commit -m "message"
+git push origin master
+
+# Publish to npm (requires Automation token)
+npm config set //registry.npmjs.org/:_authToken <npm_token>
+npm publish --access public
+
+# Or: create a GitHub Release → auto-publishes via Trusted Publishers
 ```
 
 ## License

@@ -122,7 +122,7 @@ Place these near the "Get API Key" or "Sign Up" buttons:
 
 ```html
 <!-- MCP Server badge -->
-<a href="https://github.com/aipostemail/mcp-server" 
+<a href="https://github.com/AIPOST-EMAIL/mcp-server" 
    style="background:#6e3dfb; color:white; padding:8px 16px; border-radius:6px;
           font-family:monospace; text-decoration:none; display:inline-flex; align-items:center; gap:8px;">
   <img src="https://modelcontextprotocol.io/favicon.svg" width="20" />
@@ -133,7 +133,7 @@ Place these near the "Get API Key" or "Sign Up" buttons:
 Or a more compact badge:
 
 ```markdown
-[![MCP Server](https://img.shields.io/badge/MCP-Server-6e3dfb)](https://github.com/aipostemail/mcp-server)
+[![MCP Server](https://img.shields.io/badge/MCP-Server-6e3dfb)](https://github.com/AIPOST-EMAIL/mcp-server)
 ```
 
 ---
@@ -145,7 +145,7 @@ Prominently display:
 | Platform | Link |
 |----------|------|
 | npm | `https://www.npmjs.com/package/@aipost/mcp-server` |
-| GitHub | `https://github.com/aipostemail/mcp-server` |
+| GitHub | `https://github.com/AIPOST-EMAIL/mcp-server` |
 | Install | `npm install -g @aipost/mcp-server` |
 
 ---
@@ -247,8 +247,8 @@ The MCP section should include:
 
 ## 10. Launch Checklist
 
-- [ ] Publish `@aipost/mcp-server` to npm
-- [ ] Push GitHub repo to `github.com/aipostemail/mcp-server`
+- [x] Publish `@aipost/mcp-server` to npm → https://www.npmjs.com/package/@aipost/mcp-server
+- [x] Push GitHub repo → https://github.com/AIPOST-EMAIL/mcp-server
 - [ ] Add MCP section to `aipost.email` homepage
 - [ ] Add MCP tab to `aipost.email/docs`
 - [ ] Add `MCP Server Available` badge next to "Get API Key"
@@ -259,4 +259,4 @@ The MCP section should include:
 
 ---
 
-**Questions?** The MCP server source and this document are at `github.com/aipostemail/mcp-server`.
+**Questions?** The MCP server source and this document are at `github.com/AIPOST-EMAIL/mcp-server`.
