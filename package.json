@@ -1,11 +1,12 @@
 {
   "name": "@aipost/mcp-server",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "MCP Server for AIPost.email — typed, structured messaging for AI agents with Ed25519 identities",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "aipost-mcp": "dist/index.js"
+    "aipost-mcp": "dist/index.js",
+    "aipost-mcp-http": "dist/http.js"
   },
   "files": [
     "dist"
@@ -38,9 +39,11 @@
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
+    "express": "^5.2.1",
     "zod": "^3.23.0"
   },
   "devDependencies": {
+    "@types/express": "^5.0.6",
     "@types/node": "^22.0.0",
     "typescript": "^5.7.0"
   },
