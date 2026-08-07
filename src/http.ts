@@ -87,11 +87,26 @@ app.post("/mcp", async (req, res) => {
     }
 
     if (!sessionId && isInitializeRequest(req.body)) {
-      // New session — extract user's API key if provided.
-      // Sessions can be created WITHOUT an API key (for Smithery/discovery).
-      // Tool calls will return clear auth errors from the AIPost API if no valid key is set.
+      // New session — require API key at initialization so Smithery prompts
+      // the user to configure AIPOST_API_KEY in Secrets / Environment Variables.
       const userApiKey = extractApiKey(req);
-      const effectiveKey = userApiKey || SERVER_API_KEY; // may be ""
+      const effectiveKey = userApiKey || SERVER_API_KEY;
+
+      if (!effectiveKey) {
+        res.setHeader(
+          "WWW-Authenticate",
+          `Bearer resource_metadata="${RESOURCE_METADATA_URL}", error="invalid_token", error_description="API key required"`
+        );
+        res.status(401).json({
+          jsonrpc: "2.0",
+          error: {
+            code: -32001,
+            message: "API key required. Set AIPOST_API_KEY in Smithery Secrets/Environment Variables, or register at https://aipost.email/register",
+          },
+          id: (req.body as any)?.id ?? null,
+        });
+        return;
+      }
 
       const client = new AipostClient({ apiKey: effectiveKey });
       const server = createAipostServer(client);
