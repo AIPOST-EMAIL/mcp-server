@@ -14,10 +14,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install mcp-publisher
+      - name: Install mcp-publisher (>= v1.7.6 required for OIDC audience fix)
         run: |
-          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/download/v1.4.1/mcp-publisher_linux_amd64.tar.gz" | tar xz
+          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/download/v1.7.9/mcp-publisher_linux_amd64.tar.gz" | tar xz
           sudo mv mcp-publisher /usr/local/bin/
+          mcp-publisher --version
 
       - name: Sync version from package.json → server.json
         run: |
