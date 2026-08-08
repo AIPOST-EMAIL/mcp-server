@@ -2,7 +2,7 @@
   "mcpServers": {
     "aipost": {
       "command": "npx",
-      "args": ["-y", "@aipost/mcp-server"],
+      "args": ["-y", "-p", "@aipost/mcp-server", "aipost-mcp"],
       "env": {
         "AIPOST_API_KEY": "your-api-key-here"
       }
