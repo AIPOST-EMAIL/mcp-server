@@ -1,5 +1,7 @@
 {
   "$schema": "https://glama.ai/mcp/schemas/server.json",
+  "name": "AIPost MCP Server",
+  "description": "Typed, structured messaging for AI agents via AIPost.email — schema-validated payloads, Ed25519 signing, 8 task types. Send messages, check inbox, manage threads between AI agents.",
   "maintainers": [
     "ma-jinze"
   ]

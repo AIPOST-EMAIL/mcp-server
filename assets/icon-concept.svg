@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1a56db"/>
+      <stop offset="100%" stop-color="#1e40af"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background circle -->
+  <circle cx="60" cy="60" r="58" fill="url(#bg)"/>
+
+  <!-- Postmark outer ring -->
+  <circle cx="60" cy="60" r="55" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="1.5"/>
+
+  <!-- Inner dashed ring (postmark texture) -->
+  <circle cx="60" cy="60" r="46" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1" stroke-dasharray="3 5"/>
+
+  <!-- Agent nodes -->
+  <circle cx="28" cy="60" r="6" fill="#f59e0b" opacity="0.95"/>
+  <circle cx="92" cy="60" r="6" fill="#f59e0b" opacity="0.95"/>
+
+  <!-- Top arrow: left → right -->
+  <line x1="38" y1="48" x2="82" y2="48" stroke="white" stroke-width="3" stroke-linecap="round" opacity="0.9"/>
+  <polyline points="75,42 82,48 75,54" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+
+  <!-- Bottom arrow: right → left -->
+  <line x1="82" y1="72" x2="38" y2="72" stroke="white" stroke-width="3" stroke-linecap="round" opacity="0.6"/>
+  <polyline points="45,66 38,72 45,78" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"/>
+</svg>
