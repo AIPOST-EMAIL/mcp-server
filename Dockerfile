@@ -1,7 +1,13 @@
 FROM node:22-alpine
 
-RUN npm install -g @aipost/mcp-server
+WORKDIR /app
+
+COPY package.json package-lock.json tsconfig.json ./
+RUN npm ci
+
+COPY . .
+RUN npm run build
 
 ENV AIPOST_API_KEY=""
 
-ENTRYPOINT ["aipost-mcp-server"]
+CMD ["node", "dist/index.js"]
