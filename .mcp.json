@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "aipost": {
+      "command": "npx",
+      "args": ["-y", "@aipost/mcp-server"],
+      "env": {
+        "AIPOST_API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}
