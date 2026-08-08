@@ -1,9 +1,13 @@
+import { createRequire } from "module";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { AipostClient, ApiError } from "./api.js";
+
+const require = createRequire(import.meta.url);
+const pkg = require("../package.json");
 
 const TASK_TYPES = [
   "TASK_DELEGATION", "CODE_REVIEW_REQUEST", "SECURITY_AUDIT_REQUEST",
@@ -150,7 +154,7 @@ const TOOLS = [
  */
 export function createAipostServer(client: AipostClient): Server {
   const server = new Server(
-    { name: "aipost-mcp", version: "1.0.9" },
+    { name: "aipost-mcp", version: pkg.version },
     { capabilities: { tools: {} } }
   );
 
