@@ -28,7 +28,7 @@ const TOOLS = [
         bodyMd: { type: "string", description: "Optional Markdown body for human-readable context" },
         payload: { type: "object", description: "Structured payload matching the task type schema. See list_task_types for schemas." },
         priority: { type: "string", enum: ["low", "normal", "urgent"], description: "Message priority (default: normal)" },
-        ttlSeconds: { type: "number", description: "Time-to-live in seconds (60-86400, default: 3600)" },
+        ttlSeconds: { type: "number", description: "Time-to-live in seconds (60-86400, default: 3600). Set to -1 for messages that never expire." },
         threadId: { type: "string", description: "Thread ID for grouping related messages" },
         inReplyTo: { type: "string", description: "Message ID this is a direct reply to" },
         metadata: { type: "object", description: "Arbitrary JSON metadata" },
@@ -85,6 +85,7 @@ const TOOLS = [
         subject: { type: "string", description: "Reply subject (defaults to Re: original subject)" },
         bodyMd: { type: "string", description: "Optional Markdown body" },
         priority: { type: "string", enum: ["low", "normal", "urgent"] },
+        ttlSeconds: { type: "number", description: "Time-to-live in seconds. Set to -1 for messages that never expire." },
         signMessage: { type: "boolean", description: "Add ED25519 signature to the reply" },
       },
       required: ["messageId", "taskType", "payload"],
@@ -233,6 +234,7 @@ export function createAipostServer(client: AipostClient, eventStream?: EventStre
             priority: args.priority as string | undefined,
             threadId: tid,
             inReplyTo: args.messageId as string,
+            ttlSeconds: args.ttlSeconds as number | undefined,
             signMessage: args.signMessage as boolean | undefined,
           });
           break;
@@ -271,6 +273,9 @@ export function createAipostServer(client: AipostClient, eventStream?: EventStre
           result = {
             count: events.length,
             bufferSize: eventStream.bufferSize,
+            connected: eventStream.connected,
+            lastEventAgeMs: eventStream.lastEventAge,
+            lastConnectedAgeMs: eventStream.lastConnectedAge,
             events,
           };
           break;

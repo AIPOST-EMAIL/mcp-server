@@ -163,6 +163,7 @@ export interface MailEvent {
 export class EventStream {
   private events: MailEvent[] = [];
   private running = false;
+  private _connected = false;
   private reconnectDelay = 1000;
   private maxReconnectDelay = 30_000;
   private maxBufferSize = 1000;
@@ -170,6 +171,10 @@ export class EventStream {
   private baseUrl: string;
   private abortController: AbortController | null = null;
   private eventCounter = 0;
+  /** Timestamp of last successful SSE connection */
+  private lastConnectedAt = 0;
+  /** Timestamp of last event received */
+  private lastEventAt = 0;
 
   constructor(config: { apiKey: string; baseUrl?: string }) {
     this.apiKey = config.apiKey;
@@ -209,6 +214,21 @@ export class EventStream {
     return this.events.length;
   }
 
+  /** Whether the SSE stream is currently connected. */
+  get connected(): boolean {
+    return this._connected;
+  }
+
+  /** Milliseconds since last event was received (0 if never). */
+  get lastEventAge(): number {
+    return this.lastEventAt ? Date.now() - this.lastEventAt : 0;
+  }
+
+  /** Milliseconds since last successful connection. */
+  get lastConnectedAge(): number {
+    return this.lastConnectedAt ? Date.now() - this.lastConnectedAt : 0;
+  }
+
   private async connect(): Promise<void> {
     while (this.running) {
       try {
@@ -235,42 +255,64 @@ export class EventStream {
         }
 
         console.error("[aipost-mcp] SSE connected, reading stream...");
+        this._connected = true;
+        this.lastConnectedAt = Date.now();
         this.reconnectDelay = 1000; // reset on successful connection
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
-        let currentEvent = "";
+        // SSE field buffers — dispatched on empty line per spec
+        let eventType = "";
+        let dataBuffer: string[] = [];
+        let heartbeatCount = 0;
 
         while (this.running) {
           const { done, value } = await reader.read();
           if (done) {
+            this._connected = false;
             console.error("[aipost-mcp] SSE stream ended, reconnecting...");
             break;
           }
 
           buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
+          // SSE spec: lines end with \r\n, \n, or \r
+          const lines = buffer.split(/\r?\n/);
           // Keep the last partial line in buffer
           buffer = lines.pop() || "";
 
           for (const line of lines) {
-            if (line.startsWith("event:")) {
-              currentEvent = line.slice(6).trim();
-            } else if (line.startsWith("data:")) {
-              const raw = line.slice(5).trim();
-              this.handleEvent(currentEvent || "message", raw);
-              currentEvent = "";
-            } else if (line.trim() === "" || line.startsWith(":")) {
-              // comment or empty line (heartbeat : ping), reset event type
-              if (line.startsWith(": ping")) {
-                // server heartbeat — connection is alive
+            // Strip trailing \r (explicit, even though split handles most cases)
+            const clean = line.endsWith("\r") ? line.slice(0, -1) : line;
+
+            if (clean === "") {
+              // Empty line = dispatch event (SSE spec §9.2.6)
+              if (dataBuffer.length > 0) {
+                const data = dataBuffer.join("\n");
+                this.handleEvent(eventType || "message", data);
               }
-              currentEvent = "";
+              // Reset field buffers for next event
+              eventType = "";
+              dataBuffer = [];
+            } else if (clean.startsWith(":")) {
+              // Comment line — heartbeat
+              if (clean === ": ping") {
+                heartbeatCount++;
+                if (heartbeatCount % 10 === 0) {
+                  console.error(`[aipost-mcp] SSE alive (${heartbeatCount} heartbeats, ${this.events.length} events buffered)`);
+                }
+              }
+            } else if (clean.startsWith("event:")) {
+              eventType = clean.slice(6).trim();
+            } else if (clean.startsWith("data:")) {
+              // SSE spec §9.2.4: append value to data buffer + LF
+              dataBuffer.push(clean.slice(5).trimStart());
             }
+            // Other fields (id:, retry:) — ignored for now
           }
         }
       } catch (err: unknown) {
+        this._connected = false;
         if (err instanceof DOMException && err.name === "AbortError") {
           console.error("[aipost-mcp] SSE aborted");
           return;
@@ -305,7 +347,8 @@ export class EventStream {
       receivedAt: Date.now(),
     };
 
-    console.error(`[aipost-mcp] SSE event: ${eventType}`);
+    this.lastEventAt = Date.now();
+    console.error(`[aipost-mcp] SSE event: ${eventType} (buffer: ${this.events.length + 1})`);
 
     // Enforce buffer size limit (FIFO)
     while (this.events.length >= this.maxBufferSize) {
