@@ -149,6 +149,177 @@ export class AipostClient {
   }
 }
 
+export interface MailEvent {
+  /** Unique event ID (assigned locally) */
+  eventId: string;
+  /** SSE event type (e.g., "message.new", "message.updated", "ping") */
+  eventType: string;
+  /** Parsed event data */
+  data: unknown;
+  /** Unix timestamp when the event was received */
+  receivedAt: number;
+}
+
+export class EventStream {
+  private events: MailEvent[] = [];
+  private running = false;
+  private reconnectDelay = 1000;
+  private maxReconnectDelay = 30_000;
+  private maxBufferSize = 1000;
+  private apiKey: string;
+  private baseUrl: string;
+  private abortController: AbortController | null = null;
+  private eventCounter = 0;
+
+  constructor(config: { apiKey: string; baseUrl?: string }) {
+    this.apiKey = config.apiKey;
+    this.baseUrl = config.baseUrl || "https://aipost.email";
+  }
+
+  /** Start the background SSE connection. Idempotent — safe to call multiple times. */
+  start(): void {
+    if (this.running) return;
+    this.running = true;
+    this.abortController = new AbortController();
+    console.error("[aipost-mcp] SSE event stream starting...");
+    this.connect();
+  }
+
+  /** Stop the background SSE connection. */
+  stop(): void {
+    this.running = false;
+    if (this.abortController) {
+      this.abortController.abort();
+      this.abortController = null;
+    }
+    console.error("[aipost-mcp] SSE event stream stopped");
+  }
+
+  /** Get buffered events and optionally clear the buffer. */
+  getEvents(options?: { clear?: boolean }): MailEvent[] {
+    const snapshot = [...this.events];
+    if (options?.clear) {
+      this.events = [];
+    }
+    return snapshot;
+  }
+
+  /** Return the number of buffered events. */
+  get bufferSize(): number {
+    return this.events.length;
+  }
+
+  private async connect(): Promise<void> {
+    while (this.running) {
+      try {
+        console.error("[aipost-mcp] SSE connecting...");
+        const response = await fetch(`${this.baseUrl}/v1/mail/events`, {
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+            Accept: "text/event-stream",
+          },
+          signal: this.abortController?.signal,
+        });
+
+        if (!response.ok) {
+          const text = await response.text().catch(() => "");
+          console.error(`[aipost-mcp] SSE connection failed: ${response.status} ${text}`);
+          await this.backoff();
+          continue;
+        }
+
+        if (!response.body) {
+          console.error("[aipost-mcp] SSE response has no body");
+          await this.backoff();
+          continue;
+        }
+
+        console.error("[aipost-mcp] SSE connected, reading stream...");
+        this.reconnectDelay = 1000; // reset on successful connection
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let currentEvent = "";
+
+        while (this.running) {
+          const { done, value } = await reader.read();
+          if (done) {
+            console.error("[aipost-mcp] SSE stream ended, reconnecting...");
+            break;
+          }
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          // Keep the last partial line in buffer
+          buffer = lines.pop() || "";
+
+          for (const line of lines) {
+            if (line.startsWith("event:")) {
+              currentEvent = line.slice(6).trim();
+            } else if (line.startsWith("data:")) {
+              const raw = line.slice(5).trim();
+              this.handleEvent(currentEvent || "message", raw);
+              currentEvent = "";
+            } else if (line.trim() === "" || line.startsWith(":")) {
+              // comment or empty line (heartbeat : ping), reset event type
+              if (line.startsWith(": ping")) {
+                // server heartbeat — connection is alive
+              }
+              currentEvent = "";
+            }
+          }
+        }
+      } catch (err: unknown) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          console.error("[aipost-mcp] SSE aborted");
+          return;
+        }
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[aipost-mcp] SSE error: ${msg}`);
+      }
+
+      await this.backoff();
+    }
+  }
+
+  private async backoff(): Promise<void> {
+    if (!this.running) return;
+    console.error(`[aipost-mcp] SSE reconnecting in ${this.reconnectDelay}ms...`);
+    await sleep(this.reconnectDelay);
+    this.reconnectDelay = Math.min(this.reconnectDelay * 2, this.maxReconnectDelay);
+  }
+
+  private handleEvent(eventType: string, rawData: string): void {
+    let data: unknown = rawData;
+    try {
+      data = JSON.parse(rawData);
+    } catch {
+      // keep as raw string if not JSON
+    }
+
+    const event: MailEvent = {
+      eventId: `evt_${++this.eventCounter}_${Date.now()}`,
+      eventType,
+      data,
+      receivedAt: Date.now(),
+    };
+
+    console.error(`[aipost-mcp] SSE event: ${eventType}`);
+
+    // Enforce buffer size limit (FIFO)
+    while (this.events.length >= this.maxBufferSize) {
+      this.events.shift();
+    }
+
+    this.events.push(event);
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,

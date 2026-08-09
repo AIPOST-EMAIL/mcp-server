@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { AipostClient } from "./api.js";
+import { AipostClient, EventStream } from "./api.js";
 import { Ed25519Signer } from "./auth/signer.js";
 import { createAipostServer } from "./server.js";
 
@@ -21,7 +21,14 @@ if (signer?.enabled) {
 }
 
 const client = new AipostClient({ apiKey: API_KEY, signer });
-const server = createAipostServer(client);
+
+// Start background SSE event stream for real-time inbox monitoring
+const eventStream = API_KEY
+  ? new EventStream({ apiKey: API_KEY })
+  : undefined;
+eventStream?.start();
+
+const server = createAipostServer(client, eventStream);
 
 async function main() {
   const transport = new StdioServerTransport();

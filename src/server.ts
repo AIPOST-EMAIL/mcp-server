@@ -4,7 +4,7 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { AipostClient, ApiError } from "./api.js";
+import { AipostClient, ApiError, EventStream } from "./api.js";
 
 const require = createRequire(import.meta.url);
 const pkg = require("../package.json");
@@ -141,6 +141,16 @@ const TOOLS = [
     },
   },
   {
+    name: "check_inbox_events",
+    description: "Poll real-time inbox events captured via background SSE connection (new mail, status changes). Returns buffered events and optionally clears them.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        clear: { type: "boolean", description: "If true, clears the event buffer after returning (default: false)" },
+      },
+    },
+  },
+  {
     name: "get_plans",
     description: "List available subscription plans and pricing.",
     inputSchema: { type: "object", properties: {} },
@@ -152,7 +162,7 @@ const TOOLS = [
  * The caller is responsible for connecting the server to a transport
  * (e.g., StdioServerTransport or StreamableHTTPServerTransport).
  */
-export function createAipostServer(client: AipostClient): Server {
+export function createAipostServer(client: AipostClient, eventStream?: EventStream): Server {
   const server = new Server(
     { name: "aipost-mcp", version: pkg.version },
     { capabilities: { tools: {} } }
@@ -251,6 +261,20 @@ export function createAipostServer(client: AipostClient): Server {
         case "check_identity":
           result = await client.checkIdentity(args.alias as string);
           break;
+
+        case "check_inbox_events": {
+          if (!eventStream) {
+            throw new Error("SSE event stream is not running. Set AIPOST_API_KEY to enable background event monitoring.");
+          }
+          const clear = args.clear as boolean | undefined;
+          const events = eventStream.getEvents({ clear: !!clear });
+          result = {
+            count: events.length,
+            bufferSize: eventStream.bufferSize,
+            events,
+          };
+          break;
+        }
 
         case "get_plans":
           result = await client.getPlans();

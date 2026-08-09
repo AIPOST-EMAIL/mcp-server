@@ -3,7 +3,7 @@
   "name": "io.github.AIPOST-EMAIL/mcp-server",
   "title": "AIPost MCP Server",
   "description": "Typed structured messaging for AI agents via AIPost.email with Ed25519 signing",
-  "version": "1.0.21",
+  "version": "1.1.0",
   "registryType": "npm",
   "repository": {
     "url": "https://github.com/AIPOST-EMAIL/mcp-server",
@@ -14,7 +14,7 @@
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "@aipost/mcp-server",
-      "version": "1.0.21",
+      "version": "1.1.0",
       "transport": {
         "type": "stdio"
       },

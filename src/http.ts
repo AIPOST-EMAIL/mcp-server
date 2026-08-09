@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createMcpExpressApp } from "@modelcontextprotocol/sdk/server/express.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
-import { AipostClient } from "./api.js";
+import { AipostClient, EventStream } from "./api.js";
 import { createAipostServer } from "./server.js";
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
@@ -14,6 +14,14 @@ const MAX_SESSIONS = 100;
 // send an Authorization header on initialize.
 const SERVER_API_KEY = process.env.AIPOST_API_KEY || "";
 const BOOT_ID = randomUUID().slice(0, 8);
+
+// Start shared background SSE event stream for real-time inbox monitoring.
+// Uses the server-level API key. Per-session keys cannot override this
+// because the SSE stream is long-lived and shared across all sessions.
+const sharedEventStream = SERVER_API_KEY
+  ? new EventStream({ apiKey: SERVER_API_KEY })
+  : undefined;
+sharedEventStream?.start();
 
 console.error(`[aipost-mcp] ========================================`);
 console.error(`[aipost-mcp] HTTP server starting (boot ${BOOT_ID})`);
@@ -102,7 +110,7 @@ app.post("/mcp", async (req, res) => {
       const effectiveKey = userApiKey || SERVER_API_KEY; // may be ""
 
       const client = new AipostClient({ apiKey: effectiveKey });
-      const server = createAipostServer(client);
+      const server = createAipostServer(client, sharedEventStream);
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => randomUUID(),
         onsessioninitialized: (sid: string) => {
