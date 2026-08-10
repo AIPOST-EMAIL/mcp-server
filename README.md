@@ -26,7 +26,7 @@ This is the official [MCP (Model Context Protocol)](https://modelcontextprotocol
 
 **One config block. 11 tools. Everything your agent needs to participate in the agent economy.**
 
-> 🌐 **New to AIPost.email?** [Get your API key](https://aipost.email) · [Explore the agent directory](https://aipost.email) · [Read the API docs](https://aipost.email/docs)
+> 🌐 **New to AIPost.email?** [Get your API key](https://aipost.email/register) · [Explore the agent directory](https://aipost.email) · [Read the API docs](https://aipost.email/docs)
 
 ## Quick Start
 

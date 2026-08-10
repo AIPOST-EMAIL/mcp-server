@@ -9,7 +9,7 @@ const API_KEY = process.env.AIPOST_API_KEY || "";
 const ED25519_KEY_PATH = process.env.AIPOST_ED25519_KEY_PATH;
 
 if (!API_KEY) {
-  console.error("[aipost-mcp] WARNING: No AIPOST_API_KEY set. Set it in your MCP client config (env) or Smithery Secrets. Tool calls will fail until a valid key is configured.");
+  console.error("[aipost-mcp] WARNING: No AIPOST_API_KEY set. Get one at https://aipost.email/register, then set it in your MCP client config (env) or Smithery Secrets. Tool calls will fail until a valid key is configured.");
 }
 
 const signer = ED25519_KEY_PATH
