@@ -6,6 +6,7 @@ import { join, dirname } from "node:path";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { AipostClient, EventStream } from "./api.js";
 import { Ed25519Signer } from "./auth/signer.js";
+import { SenderFilter } from "./filter.js";
 import { createAipostServer } from "./server.js";
 
 // ── CLI: --claim-key <api-key> ────────────────────────────────────────────
@@ -106,7 +107,8 @@ const eventStream = API_KEY
   : undefined;
 eventStream?.start();
 
-const server = createAipostServer(client, eventStream);
+const senderFilter = new SenderFilter(process.env as Record<string, string | undefined>);
+const server = createAipostServer(client, eventStream, senderFilter);
 
 async function main() {
   const transport = new StdioServerTransport();

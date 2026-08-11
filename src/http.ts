@@ -4,6 +4,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { createMcpExpressApp } from "@modelcontextprotocol/sdk/server/express.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { AipostClient, EventStream } from "./api.js";
+import { SenderFilter } from "./filter.js";
 import { createAipostServer } from "./server.js";
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
@@ -110,7 +111,8 @@ app.post("/mcp", async (req, res) => {
       const effectiveKey = userApiKey || SERVER_API_KEY; // may be ""
 
       const client = new AipostClient({ apiKey: effectiveKey });
-      const server = createAipostServer(client, sharedEventStream);
+      const senderFilter = new SenderFilter(process.env as Record<string, string | undefined>);
+      const server = createAipostServer(client, sharedEventStream, senderFilter);
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => randomUUID(),
         onsessioninitialized: (sid: string) => {

@@ -5,6 +5,7 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { AipostClient, ApiError, EventStream } from "./api.js";
+import { SenderFilter } from "./filter.js";
 
 const require = createRequire(import.meta.url);
 const pkg = require("../package.json");
@@ -159,14 +160,56 @@ const TOOLS = [
 ];
 
 /**
+ * Build the `instructions` string passed to the MCP client on initialize.
+ * Describes server behavior so the model understands sender filtering.
+ */
+function buildInstructions(filter: SenderFilter): string {
+  const lines: string[] = [
+    "AIPost.email MCP Server — structured messaging for AI agents.",
+    "All tools use the AIPost.email API (https://aipost.email).",
+  ];
+
+  if (filter.active) {
+    const modeLabel = filter.mode === "whitelist" ? "Whitelist" : "Blacklist";
+    lines.push(
+      "",
+      `⚠️  SENDER FILTER ACTIVE (${modeLabel} mode, ${filter.entryCount} entries).`,
+      "",
+      filter.mode === "whitelist"
+        ? "Only messages FROM senders matching the whitelist are visible. Messages from other senders are silently removed from inbox, outbox, threads, events, and directory results. Outgoing messages to non-whitelisted recipients are blocked."
+        : "Messages FROM senders matching the blacklist are silently removed from inbox, outbox, threads, events, and directory results. Outgoing messages to blacklisted recipients are blocked.",
+      "",
+      "You will NOT see filtered messages — they do not exist from your perspective.",
+      "If a get_message or delete_message call returns 'not found', the sender may have been filtered.",
+      "Do NOT attempt to bypass the filter or ask the user to disable it."
+    );
+  } else {
+    lines.push(
+      "",
+      "No sender filter is active. All messages from all senders are visible.",
+      "The user can enable filtering by setting AIPOST_SENDER_WHITELIST or AIPOST_SENDER_BLACKLIST in the MCP client config."
+    );
+  }
+
+  return lines.join("\n");
+}
+
+/**
  * Create a configured AIPost MCP Server with all tools registered.
  * The caller is responsible for connecting the server to a transport
  * (e.g., StdioServerTransport or StreamableHTTPServerTransport).
  */
-export function createAipostServer(client: AipostClient, eventStream?: EventStream): Server {
+export function createAipostServer(client: AipostClient, eventStream?: EventStream, filter?: SenderFilter): Server {
+  const senderFilter = filter ?? new SenderFilter({});
+
+  // Build server instructions — tells the AI how the server is configured.
+  // This is passed to the MCP client via the initialize response and may be
+  // added to the system prompt so the model understands server behavior.
+  const instructions = buildInstructions(senderFilter);
+
   const server = new Server(
     { name: "aipost-mcp", version: pkg.version },
-    { capabilities: { tools: {} } }
+    { capabilities: { tools: {} }, instructions }
   );
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
@@ -179,9 +222,17 @@ export function createAipostServer(client: AipostClient, eventStream?: EventStre
       let result: unknown;
 
       switch (name) {
-        case "send_message":
+        case "send_message": {
+          // Pre-flight: block sending to filtered recipients
+          const recipient = args.recipient as string;
+          if (senderFilter.active && !senderFilter.isAllowed(recipient)) {
+            throw new Error(
+              `Recipient "${recipient}" is blocked by sender filter ` +
+              `(${process.env.AIPOST_SENDER_WHITELIST ? "whitelist" : "blacklist"} mode).`
+            );
+          }
           result = await client.sendMessage({
-            recipient: args.recipient as string,
+            recipient,
             taskType: args.taskType as string,
             subject: args.subject as string | undefined,
             bodyMd: args.bodyMd as string | undefined,
@@ -194,28 +245,51 @@ export function createAipostServer(client: AipostClient, eventStream?: EventStre
             signMessage: args.signMessage as boolean | undefined,
           });
           break;
+        }
 
-        case "check_inbox":
+        case "check_inbox": {
           result = await client.getInbox({
             page: args.page as number | undefined,
             pageSize: args.pageSize as number | undefined,
             status: args.status as string | undefined,
             taskType: args.taskType as string | undefined,
           });
+          // Filter messages by sender
+          if (senderFilter.active && (result as any)?.messages) {
+            const r = result as any;
+            r.messages = senderFilter.filterBySender(r.messages);
+            r.total = r.messages.length;
+          }
           break;
+        }
 
-        case "get_message":
+        case "get_message": {
           result = await client.getMessage(args.messageId as string);
+          // Block if sender is filtered
+          if (senderFilter.active && (result as any)?.sender) {
+            if (!senderFilter.isAllowed((result as any).sender)) {
+              throw new Error(`Message ${args.messageId} not found`);
+            }
+          }
           break;
+        }
 
-        case "check_outbox":
+        case "check_outbox": {
           result = await client.getOutbox({
             page: args.page as number | undefined,
             pageSize: args.pageSize as number | undefined,
           });
+          // Filter messages by recipient
+          if (senderFilter.active && (result as any)?.messages) {
+            const r = result as any;
+            r.messages = senderFilter.filterByRecipient(r.messages);
+            r.total = r.messages.length;
+          }
           break;
+        }
 
         case "reply_to": {
+          // Resolve original message for context
           let rcpt: string | undefined;
           let tid: string | undefined;
           let subj: string | undefined;
@@ -225,8 +299,19 @@ export function createAipostServer(client: AipostClient, eventStream?: EventStre
             tid = orig.threadId || orig.messageId;
             subj = orig.subject;
           } catch { /* continue without original context */ }
+
+          const finalRecipient = rcpt || (args.recipient as string);
+
+          // Pre-flight: block replying to filtered recipients
+          if (senderFilter.active && finalRecipient && !senderFilter.isAllowed(finalRecipient)) {
+            throw new Error(
+              `Recipient "${finalRecipient}" is blocked by sender filter ` +
+              `(${process.env.AIPOST_SENDER_WHITELIST ? "whitelist" : "blacklist"} mode).`
+            );
+          }
+
           result = await client.sendMessage({
-            recipient: rcpt || (args.recipient as string),
+            recipient: finalRecipient,
             taskType: args.taskType as string,
             subject: (args.subject as string) || `Re: ${subj || "message"}`,
             bodyMd: args.bodyMd as string | undefined,
@@ -240,21 +325,41 @@ export function createAipostServer(client: AipostClient, eventStream?: EventStre
           break;
         }
 
-        case "get_thread":
+        case "get_thread": {
           result = await client.getThread(args.threadId as string);
+          // Filter messages in thread by sender
+          if (senderFilter.active && Array.isArray(result)) {
+            result = senderFilter.filterBySender(
+              (result as any[]).map((m: any) => ({ ...m, sender: m.sender }))
+            );
+          }
           break;
+        }
 
         case "delete_message":
           result = await client.deleteMessage(args.messageId as string);
+          // Filter response sender
+          if (senderFilter.active && (result as any)?.sender) {
+            if (!senderFilter.isAllowed((result as any).sender)) {
+              throw new Error(`Message ${args.messageId} not found`);
+            }
+          }
           break;
 
-        case "list_agents":
+        case "list_agents": {
           result = await client.getDirectory({
             q: args.query as string | undefined,
             page: args.page as number | undefined,
             pageSize: args.pageSize as number | undefined,
           });
+          // Filter directory entries by address
+          if (senderFilter.active && (result as any)?.entries) {
+            const r = result as any;
+            r.entries = senderFilter.filterByAddress(r.entries);
+            r.total = r.entries.length;
+          }
           break;
+        }
 
         case "list_task_types":
           result = await client.getTaskTypes();
@@ -269,7 +374,11 @@ export function createAipostServer(client: AipostClient, eventStream?: EventStre
             throw new Error("SSE event stream is not running. Set AIPOST_API_KEY to enable background event monitoring.");
           }
           const clear = args.clear as boolean | undefined;
-          const events = eventStream.getEvents({ clear: !!clear });
+          let events = eventStream.getEvents({ clear: !!clear });
+          // Filter events by sender
+          if (senderFilter.active) {
+            events = senderFilter.filterEvents(events) as any;
+          }
           result = {
             count: events.length,
             bufferSize: eventStream.bufferSize,
@@ -305,7 +414,7 @@ export function createAipostServer(client: AipostClient, eventStream?: EventStre
         };
       }
       // Catch ALL unexpected errors so the process never crashes (crashes → Smithery 502).
-      // This includes network failures (fetch throws TypeError), DNS issues, etc.
+      // This includes network failures (fetch throws TypeError), DNS issues, and sender filter rejections.
       const message = error instanceof Error ? error.message : String(error);
       console.error("[aipost-mcp] Unexpected error in tool handler:", message);
       return {
