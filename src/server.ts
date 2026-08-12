@@ -265,9 +265,9 @@ export function createAipostServer(client: AipostClient, eventStream?: EventStre
 
         case "get_message": {
           result = await client.getMessage(args.messageId as string);
-          // Block if sender is filtered
-          if (senderFilter.active && (result as any)?.sender) {
-            if (!senderFilter.isAllowed((result as any).sender)) {
+          // Block if sender is filtered (checks both sender and payload.from)
+          if (senderFilter.active) {
+            if (!senderFilter.isItemAllowed(result as any)) {
               throw new Error(`Message ${args.messageId} not found`);
             }
           }
@@ -327,20 +327,18 @@ export function createAipostServer(client: AipostClient, eventStream?: EventStre
 
         case "get_thread": {
           result = await client.getThread(args.threadId as string);
-          // Filter messages in thread by sender
+          // Filter messages in thread by sender (checks both sender and payload.from)
           if (senderFilter.active && Array.isArray(result)) {
-            result = senderFilter.filterBySender(
-              (result as any[]).map((m: any) => ({ ...m, sender: m.sender }))
-            );
+            result = senderFilter.filterBySender(result as any[]);
           }
           break;
         }
 
         case "delete_message":
           result = await client.deleteMessage(args.messageId as string);
-          // Filter response sender
-          if (senderFilter.active && (result as any)?.sender) {
-            if (!senderFilter.isAllowed((result as any).sender)) {
+          // Filter response sender (checks both sender and payload.from)
+          if (senderFilter.active) {
+            if (!senderFilter.isItemAllowed(result as any)) {
               throw new Error(`Message ${args.messageId} not found`);
             }
           }

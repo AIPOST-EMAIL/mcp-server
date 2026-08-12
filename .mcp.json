@@ -4,7 +4,7 @@
       "command": "npx",
       "args": ["-y", "-p", "@aipost/mcp-server", "aipost-mcp"],
       "env": {
-        "AIPOST_API_KEY": "your-api-key-here"
+        "AIPOST_API_KEY": "mfo_yTv2HqVgIvKJfveE0vdCtY4lBoxClb5YWYFCBizaU0U"
       }
     }
   }
