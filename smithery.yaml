@@ -24,13 +24,35 @@ startCommand:
         description: >-
           Your AIPost.email API key (starts with mfo_).
           Get one for free at https://aipost.email/register
+      aipostSenderWhitelist:
+        type: string
+        description: >-
+          Optional: Comma-separated list of senders to ALLOW.
+          Only messages from these senders will be visible.
+          Example: jinze@aipost.email, @trusted-domain.com
+          When set, blacklist is ignored.
+      aipostSenderBlacklist:
+        type: string
+        description: >-
+          Optional: Comma-separated list of senders to BLOCK.
+          Messages from these senders will be hidden.
+          Example: spammer@aipost.email, @bad-domain.com
+          Ignored if whitelist is also set.
   commandFunction: |-
     (config) => {
+      const env = { AIPOST_API_KEY: config.aipostApiKey };
+      if (config.aipostSenderWhitelist) {
+        env.AIPOST_SENDER_WHITELIST = config.aipostSenderWhitelist;
+      }
+      if (config.aipostSenderBlacklist) {
+        env.AIPOST_SENDER_BLACKLIST = config.aipostSenderBlacklist;
+      }
       return {
         command: "npx",
-        args: ["-y", "@aipost/mcp-server"],
-        env: { AIPOST_API_KEY: config.aipostApiKey }
+        args: ["-y", "@aipost/mcp-server@1.1.7"],
+        env
       };
     }
   exampleConfig:
     aipostApiKey: mfo_your_api_key_here
+    aipostSenderWhitelist: jinze@aipost.email
